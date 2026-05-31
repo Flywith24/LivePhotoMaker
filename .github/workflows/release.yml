@@ -22,12 +22,12 @@ jobs:
       - name: Rename dmg
         run: cp .build/dist/LivePhotoMaker.dmg LivePhotoMaker-${{ github.ref_name }}-macos.dmg
 
+      - name: Generate release notes
+        run: bash scripts/make_release_notes.sh "${{ github.ref_name }}" release_notes.md
+
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
           name: LivePhotoMaker ${{ github.ref_name }}
-          body: |
-            macOS App，用于将本地视频转换并导入「照片」App，让系统识别为 Live Photo。
-
-            下载 `LivePhotoMaker-${{ github.ref_name }}-macos.dmg`，打开后将 App 拖入 Applications。
+          body_path: release_notes.md
           files: LivePhotoMaker-${{ github.ref_name }}-macos.dmg
