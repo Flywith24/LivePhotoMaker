@@ -6,12 +6,16 @@ env CLANG_MODULE_CACHE_PATH=.build/ModuleCache SWIFTPM_HOME=.build/swiftpm swift
 APP_DIR=".build/LivePhotoMaker.app"
 EXECUTABLE_DIR="$APP_DIR/Contents/MacOS"
 RESOURCES_DIR="$APP_DIR/Contents/Resources"
+APP_VERSION="${APP_VERSION:-1.1.0}"
 ICON_SOURCE="Assets/AppIcon.png"
+DMG_BACKGROUND="Assets/DMGBackground.png"
 ICONSET_DIR=".build/AppIcon.iconset"
 ICNS_PATH="$RESOURCES_DIR/AppIcon.icns"
 DIST_DIR=".build/dist"
 DMG_STAGING_DIR=".build/dmg"
 DMG_PATH="$DIST_DIR/LivePhotoMaker.dmg"
+RW_DMG_PATH="$DIST_DIR/LivePhotoMaker-rw.dmg"
+DMG_MOUNT_DIR=".build/dmg-mount"
 
 rm -rf "$APP_DIR"
 mkdir -p "$EXECUTABLE_DIR" "$RESOURCES_DIR"
@@ -51,7 +55,7 @@ cat > "$APP_DIR/Contents/Info.plist" <<'PLIST'
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
+    <string>__APP_VERSION__</string>
     <key>CFBundleVersion</key>
     <string>1</string>
     <key>LSMinimumSystemVersion</key>
@@ -65,17 +69,54 @@ cat > "$APP_DIR/Contents/Info.plist" <<'PLIST'
 </dict>
 </plist>
 PLIST
+perl -0pi -e "s/__APP_VERSION__/$APP_VERSION/g" "$APP_DIR/Contents/Info.plist"
 
-rm -rf "$DIST_DIR" "$DMG_STAGING_DIR"
-mkdir -p "$DIST_DIR" "$DMG_STAGING_DIR"
+if [[ ! -f "$DMG_BACKGROUND" ]]; then
+    swift scripts/make_dmg_background.swift "$DMG_BACKGROUND"
+fi
+
+rm -rf "$DIST_DIR" "$DMG_STAGING_DIR" "$DMG_MOUNT_DIR"
+mkdir -p "$DIST_DIR" "$DMG_STAGING_DIR/.background" "$DMG_MOUNT_DIR"
 cp -R "$APP_DIR" "$DMG_STAGING_DIR/LivePhotoMaker.app"
 ln -s /Applications "$DMG_STAGING_DIR/Applications"
+cp "$DMG_BACKGROUND" "$DMG_STAGING_DIR/.background/background.png"
 hdiutil create \
     -volname "LivePhotoMaker" \
     -srcfolder "$DMG_STAGING_DIR" \
     -ov \
-    -format UDZO \
-    "$DMG_PATH" >/dev/null
+    -format UDRW \
+    "$RW_DMG_PATH" >/dev/null
+
+hdiutil attach "$RW_DMG_PATH" -mountpoint "$DMG_MOUNT_DIR" -nobrowse -quiet
+
+if osascript <<APPLESCRIPT
+set bgPath to POSIX file "$(pwd)/$DMG_MOUNT_DIR/.background/background.png" as alias
+tell application "Finder"
+    tell disk "LivePhotoMaker"
+        open
+        set current view of container window to icon view
+        set toolbar visible of container window to false
+        set statusbar visible of container window to false
+        set bounds of container window to {120, 120, 760, 520}
+        set theViewOptions to the icon view options of container window
+        set arrangement of theViewOptions to not arranged
+        set icon size of theViewOptions to 96
+        set background picture of theViewOptions to bgPath
+        set position of item "LivePhotoMaker.app" of container window to {176, 210}
+        set position of item "Applications" of container window to {464, 210}
+        close
+    end tell
+end tell
+APPLESCRIPT
+then
+    sync
+else
+    echo "Warning: Finder layout customization failed; DMG will still be usable." >&2
+fi
+
+hdiutil detach "$DMG_MOUNT_DIR" -quiet
+hdiutil convert "$RW_DMG_PATH" -format UDZO -imagekey zlib-level=9 -o "$DMG_PATH" >/dev/null
+rm -f "$RW_DMG_PATH"
 
 echo "Built $APP_DIR"
 echo "Built $DMG_PATH"

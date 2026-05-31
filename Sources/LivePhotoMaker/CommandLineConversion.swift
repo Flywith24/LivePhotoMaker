@@ -3,12 +3,13 @@ import Foundation
 enum CommandLineConversion {
     static func runIfRequested() {
         let arguments = CommandLine.arguments
-        guard arguments.count == 4, arguments[1] == "--convert" else {
+        guard (arguments.count == 4 || arguments.count == 5), arguments[1] == "--convert" else {
             return
         }
 
         let videoURL = URL(fileURLWithPath: arguments[2])
         let outputURL = URL(fileURLWithPath: arguments[3], isDirectory: true)
+        let coverURL = arguments.count == 5 ? URL(fileURLWithPath: arguments[4]) : nil
         let semaphore = DispatchSemaphore(value: 0)
         var exitCode: Int32 = 0
 
@@ -16,7 +17,8 @@ enum CommandLineConversion {
             do {
                 let result = try await LivePhotoConverter().convert(
                     videoURL: videoURL,
-                    outputDirectory: outputURL
+                    outputDirectory: outputURL,
+                    coverImageURL: coverURL
                 ) { progress in
                     FileHandle.standardError.write(Data(String(format: "progress %.2f\n", progress).utf8))
                 }

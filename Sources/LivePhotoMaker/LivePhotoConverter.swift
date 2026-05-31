@@ -43,6 +43,7 @@ final class LivePhotoConverter: Sendable {
     func convert(
         videoURL: URL,
         outputDirectory: URL,
+        coverImageURL: URL? = nil,
         progress: @escaping ProgressHandler
     ) async throws -> LivePhotoConversionResult {
         try await Task.detached(priority: .userInitiated) {
@@ -57,7 +58,12 @@ final class LivePhotoConverter: Sendable {
 
             let asset = AVURLAsset(url: videoURL)
             progress(0.08)
-            try Self.writeKeyPhoto(from: asset, to: photoURL, assetIdentifier: assetIdentifier)
+            try Self.writeKeyPhoto(
+                from: asset,
+                coverImageURL: coverImageURL,
+                to: photoURL,
+                assetIdentifier: assetIdentifier
+            )
             progress(0.35)
             try Self.writePairedMovie(
                 from: asset,
@@ -79,9 +85,15 @@ final class LivePhotoConverter: Sendable {
 
     private static func writeKeyPhoto(
         from asset: AVURLAsset,
+        coverImageURL: URL?,
         to outputURL: URL,
         assetIdentifier: String
     ) throws {
+        if let coverImageURL {
+            try writeCustomCover(from: coverImageURL, to: outputURL, assetIdentifier: assetIdentifier)
+            return
+        }
+
         let duration = asset.duration.seconds
         guard duration.isFinite, duration > 0 else {
             throw LivePhotoConversionError.unreadableVideo
@@ -110,6 +122,38 @@ final class LivePhotoConverter: Sendable {
                 "17": assetIdentifier
             ],
             kCGImagePropertyOrientation: 1
+        ]
+
+        CGImageDestinationAddImage(destination, image, metadata as CFDictionary)
+
+        guard CGImageDestinationFinalize(destination) else {
+            throw LivePhotoConversionError.cannotWriteImage
+        }
+    }
+
+    private static func writeCustomCover(
+        from coverURL: URL,
+        to outputURL: URL,
+        assetIdentifier: String
+    ) throws {
+        guard let source = CGImageSourceCreateWithURL(coverURL as CFURL, nil),
+              let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
+              let destination = CGImageDestinationCreateWithURL(
+                outputURL as CFURL,
+                UTType.jpeg.identifier as CFString,
+                1,
+                nil
+              ) else {
+            throw LivePhotoConversionError.cannotWriteImage
+        }
+
+        let sourceProperties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+        let orientation = sourceProperties?[kCGImagePropertyOrientation] ?? 1
+        let metadata: [CFString: Any] = [
+            kCGImagePropertyMakerAppleDictionary: [
+                "17": assetIdentifier
+            ],
+            kCGImagePropertyOrientation: orientation
         ]
 
         CGImageDestinationAddImage(destination, image, metadata as CFDictionary)
