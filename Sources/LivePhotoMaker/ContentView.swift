@@ -568,18 +568,21 @@ private struct CoverThumbnail: View {
     let url: URL
 
     var body: some View {
-        if let image = NSImage(contentsOf: url) {
-            Image(nsImage: image)
-                .resizable()
-                .scaledToFill()
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-        } else {
-            RoundedRectangle(cornerRadius: 8)
-                .fill(.quaternary)
-                .overlay {
+        GeometryReader { geometry in
+            ZStack {
+                if let image = NSImage(contentsOf: url) {
+                    Image(nsImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: geometry.size.width, height: geometry.size.height)
+                } else {
                     Image(systemName: "photo")
                         .foregroundStyle(.secondary)
                 }
+            }
+            .frame(width: geometry.size.width, height: geometry.size.height)
+            .background(.quaternary)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
         }
     }
 }
