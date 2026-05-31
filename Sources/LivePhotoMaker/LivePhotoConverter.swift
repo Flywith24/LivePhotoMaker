@@ -191,7 +191,7 @@ final class LivePhotoConverter: Sendable {
 
         let writer = try AVAssetWriter(outputURL: outputURL, fileType: .mov)
         writer.shouldOptimizeForNetworkUse = false
-        writer.metadata = [contentIdentifierMetadataItem(assetIdentifier)]
+        writer.metadata = movieMetadata(from: asset, assetIdentifier: assetIdentifier)
 
         var copyPairs: [(AVAssetReaderTrackOutput, AVAssetWriterInput)] = []
         for track in asset.tracks where track.mediaType == .video || track.mediaType == .audio {
@@ -201,8 +201,13 @@ final class LivePhotoConverter: Sendable {
             guard reader.canAdd(readerOutput) else { continue }
             reader.add(readerOutput)
 
-            let writerInput = AVAssetWriterInput(mediaType: track.mediaType, outputSettings: nil)
+            let writerInput = AVAssetWriterInput(
+                mediaType: track.mediaType,
+                outputSettings: nil,
+                sourceFormatHint: track.formatDescriptions.first as! CMFormatDescription?
+            )
             writerInput.expectsMediaDataInRealTime = false
+            writerInput.metadata = track.metadata
             if track.mediaType == .video {
                 writerInput.transform = track.preferredTransform
             }
@@ -327,6 +332,24 @@ final class LivePhotoConverter: Sendable {
         if let error = state.error {
             throw error
         }
+    }
+
+    private static func movieMetadata(
+        from asset: AVURLAsset,
+        assetIdentifier: String
+    ) -> [AVMetadataItem] {
+        var metadata = asset.metadata.filter { !isLivePhotoPairingMetadata($0) }
+        metadata.append(contentIdentifierMetadataItem(assetIdentifier))
+        return metadata
+    }
+
+    private static func isLivePhotoPairingMetadata(_ item: AVMetadataItem) -> Bool {
+        guard let identifier = item.identifier?.rawValue else {
+            return false
+        }
+
+        return identifier == AVMetadataIdentifier.quickTimeMetadataContentIdentifier.rawValue ||
+            identifier == "mdta/com.apple.quicktime.still-image-time"
     }
 
     private static func contentIdentifierMetadataItem(_ assetIdentifier: String) -> AVMetadataItem {

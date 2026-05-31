@@ -99,12 +99,13 @@ Photos 识别 Live Photo 需要一张静态照片和一个配对视频。LivePho
 - 从视频中提取中间帧，或使用用户选择的封面
 - 给 HEIC 写入 Apple Maker metadata 中的 asset identifier
 - 将视频重新封装为 MOV
+- 尽量保留源视频的容器 metadata、轨道 metadata 和 format description
 - 给 MOV 写入 `com.apple.quicktime.content.identifier`
 - 添加 `com.apple.quicktime.still-image-time` metadata track
 - 通过 Photos framework 用 `.photo` 和 `.pairedVideo` 资源类型导入
 
 ## 关于 HDR 与清晰度
 
-视频轨道会尽量 passthrough 重新封装，避免重编码造成损失。封面已改为 HEIC 输出，并会尽量保留自定义封面的基础图片属性和颜色信息，因此比 JPG 更接近 iPhone 原生 Live Photo 的资源形态。
+视频轨道会尽量 passthrough 重新封装，避免重编码造成损失。封面已改为 HEIC 输出，并会尽量保留自定义封面的基础图片属性和颜色信息；MOV 输出也会尽量继承源视频的容器 metadata、轨道 metadata 和 format description，降低重新封装时丢失色彩/HDR 相关信息的概率。因此它比 JPG 封面和只写基础 MOV metadata 更接近 iPhone 原生 Live Photo 的资源形态。
 
-需要注意的是，这还不是完整的 iPhone 原生 HDR 管线：当前不会生成 Apple Photos 使用的 HDR gain map，也没有完整复刻 iPhone 拍摄时写入的所有 HDR/色彩元数据。若要继续追求更接近原生效果，后续可以加入 HDR-aware 的视频帧提取、HEIC auxiliary image/gain map 写入，以及更完整的色彩空间和 QuickTime HDR metadata 保真。
+需要注意的是，这还不是完整的 iPhone 原生 HDR 管线：当前不会生成 Apple Photos 使用的 HDR gain map，也没有完整复刻 iPhone 拍摄时写入的所有 HDR/色彩元数据。若要继续追求更接近原生效果，后续可以加入 HDR-aware 的视频帧提取、HEIC auxiliary image/gain map 写入，以及更细粒度的 QuickTime HDR metadata 校验。
