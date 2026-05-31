@@ -11,7 +11,7 @@ enum CommandLineConversion {
         let outputURL = URL(fileURLWithPath: arguments[3], isDirectory: true)
         let coverURL = arguments.count == 5 ? URL(fileURLWithPath: arguments[4]) : nil
         let semaphore = DispatchSemaphore(value: 0)
-        var exitCode: Int32 = 0
+        let exitState = CommandLineExitState()
 
         Task {
             do {
@@ -27,13 +27,31 @@ enum CommandLineConversion {
                 print(result.movieURL.path(percentEncoded: false))
             } catch {
                 FileHandle.standardError.write(Data("error: \(error.localizedDescription)\n".utf8))
-                exitCode = 1
+                exitState.setExitCode(1)
             }
 
             semaphore.signal()
         }
 
         semaphore.wait()
-        Foundation.exit(exitCode)
+        Foundation.exit(exitState.exitCode)
+    }
+}
+
+private final class CommandLineExitState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: Int32 = 0
+
+    var exitCode: Int32 {
+        lock.lock()
+        let result = value
+        lock.unlock()
+        return result
+    }
+
+    func setExitCode(_ exitCode: Int32) {
+        lock.lock()
+        value = exitCode
+        lock.unlock()
     }
 }

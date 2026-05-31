@@ -17,7 +17,7 @@ enum PhotosImportError: LocalizedError {
 
 final class PhotosImporter: Sendable {
     func importLivePhoto(_ result: LivePhotoConversionResult) async throws {
-        let status = await requestAddOnlyAccessIfNeeded()
+        let status = await requestReadWriteAccessIfNeeded()
         guard status == .authorized || status == .limited else {
             throw PhotosImportError.permissionDenied
         }
@@ -45,14 +45,14 @@ final class PhotosImporter: Sendable {
         }
     }
 
-    private func requestAddOnlyAccessIfNeeded() async -> PHAuthorizationStatus {
-        let current = PHPhotoLibrary.authorizationStatus(for: .addOnly)
+    private func requestReadWriteAccessIfNeeded() async -> PHAuthorizationStatus {
+        let current = PHPhotoLibrary.authorizationStatus(for: .readWrite)
         guard current == .notDetermined else {
             return current
         }
 
         return await withCheckedContinuation { continuation in
-            PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
+            PHPhotoLibrary.requestAuthorization(for: .readWrite) { status in
                 continuation.resume(returning: status)
             }
         }

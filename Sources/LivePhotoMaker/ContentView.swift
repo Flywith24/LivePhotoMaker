@@ -21,6 +21,7 @@ struct ContentView: View {
     @State private var updateMessage: String?
     @State private var updateURL: URL?
     @State private var showsAbout = false
+    @State private var framePickerRequest: FramePickerRequest?
 
     private let converter = LivePhotoConverter()
     private let importer = PhotosImporter()
@@ -74,6 +75,12 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showsAbout) {
             AboutView()
+        }
+        .sheet(item: $framePickerRequest) { request in
+            VideoFramePicker(videoURL: request.videoURL) { coverURL in
+                coverImageURL = coverURL
+                status = "Selected a cover frame from \(request.videoURL.lastPathComponent)."
+            }
         }
     }
 
@@ -244,6 +251,15 @@ struct ContentView: View {
                 .disabled(isConverting)
 
                 Button {
+                    if let firstVideo = selectedVideos.first?.url {
+                        framePickerRequest = FramePickerRequest(videoURL: firstVideo)
+                    }
+                } label: {
+                    Label("Pick Frame", systemImage: "film")
+                }
+                .disabled(selectedVideos.isEmpty || isConverting)
+
+                Button {
                     coverImageURL = nil
                 } label: {
                     Label("Reset", systemImage: "xmark.circle")
@@ -264,6 +280,16 @@ struct ContentView: View {
             }
 
             Spacer()
+
+            Button {
+                if let firstVideo = selectedVideos.first?.url {
+                    framePickerRequest = FramePickerRequest(videoURL: firstVideo)
+                }
+            } label: {
+                Label("Pick Cover From Video", systemImage: "slider.horizontal.below.sun.max")
+                    .frame(maxWidth: .infinity)
+            }
+            .disabled(selectedVideos.isEmpty || isConverting)
 
             Button {
                 Task { await convertBatch() }
@@ -335,6 +361,15 @@ struct ContentView: View {
             }
 
             Spacer()
+
+            Button {
+                framePickerRequest = FramePickerRequest(videoURL: item.url)
+            } label: {
+                Image(systemName: "photo")
+            }
+            .buttonStyle(.borderless)
+            .help("Pick a cover frame from this video")
+            .disabled(isConverting)
 
             Button {
                 selectedVideos.removeAll { $0.id == item.id }

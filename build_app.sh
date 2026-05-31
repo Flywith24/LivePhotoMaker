@@ -15,7 +15,6 @@ DIST_DIR=".build/dist"
 DMG_STAGING_DIR=".build/dmg"
 DMG_PATH="$DIST_DIR/LivePhotoMaker.dmg"
 RW_DMG_PATH="$DIST_DIR/LivePhotoMaker-rw.dmg"
-DMG_MOUNT_DIR=".build/dmg-mount"
 
 rm -rf "$APP_DIR"
 mkdir -p "$EXECUTABLE_DIR" "$RESOURCES_DIR"
@@ -75,8 +74,8 @@ if [[ ! -f "$DMG_BACKGROUND" ]]; then
     swift scripts/make_dmg_background.swift "$DMG_BACKGROUND"
 fi
 
-rm -rf "$DIST_DIR" "$DMG_STAGING_DIR" "$DMG_MOUNT_DIR"
-mkdir -p "$DIST_DIR" "$DMG_STAGING_DIR/.background" "$DMG_MOUNT_DIR"
+rm -rf "$DIST_DIR" "$DMG_STAGING_DIR"
+mkdir -p "$DIST_DIR" "$DMG_STAGING_DIR/.background"
 cp -R "$APP_DIR" "$DMG_STAGING_DIR/LivePhotoMaker.app"
 ln -s /Applications "$DMG_STAGING_DIR/Applications"
 cp "$DMG_BACKGROUND" "$DMG_STAGING_DIR/.background/background.png"
@@ -87,26 +86,41 @@ hdiutil create \
     -format UDRW \
     "$RW_DMG_PATH" >/dev/null
 
-hdiutil attach "$RW_DMG_PATH" -mountpoint "$DMG_MOUNT_DIR" -nobrowse -quiet
+MOUNT_OUTPUT="$(hdiutil attach "$RW_DMG_PATH" -readwrite -noverify -noautoopen)"
+DMG_MOUNT_DIR="$(printf '%s\n' "$MOUNT_OUTPUT" | awk '/\/Volumes\// { print substr($0, index($0, "/Volumes/")); exit }')"
+if [[ -z "$DMG_MOUNT_DIR" ]]; then
+    echo "Could not find DMG mount point." >&2
+    exit 1
+fi
 
 if osascript <<APPLESCRIPT
-set bgPath to POSIX file "$(pwd)/$DMG_MOUNT_DIR/.background/background.png" as alias
+set bgPath to POSIX file "$DMG_MOUNT_DIR/.background/background.png" as alias
+set didLayout to false
 tell application "Finder"
-    tell disk "LivePhotoMaker"
-        open
-        set current view of container window to icon view
-        set toolbar visible of container window to false
-        set statusbar visible of container window to false
-        set bounds of container window to {120, 120, 760, 520}
-        set theViewOptions to the icon view options of container window
-        set arrangement of theViewOptions to not arranged
-        set icon size of theViewOptions to 96
-        set background picture of theViewOptions to bgPath
-        set position of item "LivePhotoMaker.app" of container window to {176, 210}
-        set position of item "Applications" of container window to {464, 210}
-        close
-    end tell
+    repeat 20 times
+        try
+            tell disk "LivePhotoMaker"
+                open
+                set current view of container window to icon view
+                set toolbar visible of container window to false
+                set statusbar visible of container window to false
+                set bounds of container window to {120, 120, 760, 520}
+                set theViewOptions to the icon view options of container window
+                set arrangement of theViewOptions to not arranged
+                set icon size of theViewOptions to 96
+                set background picture of theViewOptions to bgPath
+                set position of item "LivePhotoMaker.app" of container window to {176, 210}
+                set position of item "Applications" of container window to {464, 210}
+                close
+            end tell
+            set didLayout to true
+            exit repeat
+        on error
+            delay 0.25
+        end try
+    end repeat
 end tell
+if didLayout is false then error "Could not customize DMG Finder layout."
 APPLESCRIPT
 then
     sync
