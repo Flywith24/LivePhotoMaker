@@ -23,7 +23,7 @@ struct VideoFramePicker: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Choose Video Frame")
+                    Text("选择视频帧")
                         .font(.title2.weight(.semibold))
                     Text(videoURL.lastPathComponent)
                         .font(.callout)
@@ -73,7 +73,7 @@ struct VideoFramePicker: View {
             }
 
             HStack {
-                Button("Cancel") {
+                Button("取消") {
                     dismiss()
                 }
 
@@ -82,7 +82,7 @@ struct VideoFramePicker: View {
                 Button {
                     Task { await saveFrame() }
                 } label: {
-                    Label("Use This Frame", systemImage: "checkmark.circle")
+                    Label("使用这一帧", systemImage: "checkmark.circle")
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(previewImage == nil || isSaving)

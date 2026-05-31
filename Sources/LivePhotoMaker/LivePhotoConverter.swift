@@ -22,17 +22,17 @@ enum LivePhotoConversionError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .unreadableVideo:
-            "The selected video could not be read."
+            "无法读取所选视频。"
         case .cannotCreateImageDestination:
-            "Could not create the output JPG."
+            "无法创建输出 JPG。"
         case .cannotWriteImage:
-            "Could not write the Live Photo still image metadata."
+            "无法写入 Live Photo 封面元数据。"
         case .cannotReadMovie:
-            "Could not read video or audio tracks from the selected movie."
+            "无法读取所选视频的音频或视频轨道。"
         case .cannotWriteMovie:
-            "Could not write the paired MOV file."
+            "无法写入配对 MOV 文件。"
         case .cancelled:
-            "The conversion was cancelled."
+            "转换已取消。"
         }
     }
 }

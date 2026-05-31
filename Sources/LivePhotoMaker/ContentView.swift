@@ -15,7 +15,7 @@ struct ContentView: View {
     @State private var isCheckingUpdates = false
     @State private var progress = 0.0
     @State private var importedCount = 0
-    @State private var status = "Drop videos here or choose a batch."
+    @State private var status = "拖入视频，或选择一批视频开始。"
     @State private var results: [LivePhotoConversionResult] = []
     @State private var errorMessage: String?
     @State private var updateMessage: String?
@@ -52,24 +52,24 @@ struct ContentView: View {
             }
             .padding(22)
         }
-        .alert("Conversion failed", isPresented: Binding(
+        .alert("转换失败", isPresented: Binding(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
         )) {
-            Button("OK", role: .cancel) { errorMessage = nil }
+            Button("好", role: .cancel) { errorMessage = nil }
         } message: {
             Text(errorMessage ?? "")
         }
-        .alert("Updates", isPresented: Binding(
+        .alert("检查更新", isPresented: Binding(
             get: { updateMessage != nil },
             set: { if !$0 { updateMessage = nil } }
         )) {
             if let updateURL {
-                Button("Open Release") {
+                Button("打开发布页") {
                     NSWorkspace.shared.open(updateURL)
                 }
             }
-            Button("OK", role: .cancel) { updateMessage = nil }
+            Button("好", role: .cancel) { updateMessage = nil }
         } message: {
             Text(updateMessage ?? "")
         }
@@ -79,7 +79,7 @@ struct ContentView: View {
         .sheet(item: $framePickerRequest) { request in
             VideoFramePicker(videoURL: request.videoURL) { coverURL in
                 coverImageURL = coverURL
-                status = "Selected a cover frame from \(request.videoURL.lastPathComponent)."
+                status = "已从 \(request.videoURL.lastPathComponent) 选择封面帧。"
             }
         }
     }
@@ -97,7 +97,7 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text("LivePhotoMaker")
                     .font(.system(size: 28, weight: .semibold))
-                Text("Batch convert videos into Photos-ready Live Photos.")
+                Text("批量把视频导入「照片」并识别为 Live Photo。")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
@@ -107,22 +107,24 @@ struct ContentView: View {
             Button {
                 showsAbout = true
             } label: {
-                Label("About", systemImage: "info.circle")
+                Label("关于", systemImage: "info.circle")
             }
+            .buttonStyle(ToolbarPillButtonStyle())
 
             Button {
                 Task { await checkForUpdates() }
             } label: {
-                Label(isCheckingUpdates ? "Checking" : "Check Updates", systemImage: "arrow.clockwise")
+                Label(isCheckingUpdates ? "检查中" : "检查更新", systemImage: "arrow.clockwise")
             }
             .disabled(isCheckingUpdates)
+            .buttonStyle(ToolbarPillButtonStyle())
         }
     }
 
     private var queuePanel: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Label("Import Queue", systemImage: "film.stack")
+                Label("导入队列", systemImage: "film.stack")
                     .font(.headline)
                 Spacer()
                 Text("\(selectedVideos.count)")
@@ -134,9 +136,9 @@ struct ContentView: View {
 
             if selectedVideos.isEmpty {
                 ContentUnavailableView(
-                    "No videos selected",
+                    "还没有选择视频",
                     systemImage: "video.badge.plus",
-                    description: Text("Drop video files here or choose multiple videos.")
+                    description: Text("拖入视频文件，或一次选择多个视频。")
                 )
                 .frame(maxWidth: .infinity, minHeight: 190)
             } else {
@@ -155,7 +157,7 @@ struct ContentView: View {
                 Button {
                     chooseVideos()
                 } label: {
-                    Label("Choose Videos", systemImage: "plus")
+                    Label("选择视频", systemImage: "plus")
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(isConverting)
@@ -165,9 +167,9 @@ struct ContentView: View {
                     results.removeAll()
                     importedCount = 0
                     progress = 0
-                    status = "Queue cleared."
+                    status = "队列已清空。"
                 } label: {
-                    Label("Clear", systemImage: "trash")
+                    Label("清空", systemImage: "trash")
                 }
                 .disabled(selectedVideos.isEmpty || isConverting)
             }
@@ -188,7 +190,7 @@ struct ContentView: View {
                 HStack(spacing: 10) {
                     Image(systemName: "arrow.down.doc")
                         .font(.title3)
-                    Text("Drop videos")
+                    Text("拖入视频")
                         .font(.headline)
                     Text("MP4, MOV, M4V")
                         .font(.callout)
@@ -205,7 +207,7 @@ struct ContentView: View {
 
     private var settingsPanel: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Label("Cover", systemImage: "photo")
+            Label("封面", systemImage: "photo")
                 .font(.headline)
 
             VStack(alignment: .leading, spacing: 10) {
@@ -219,7 +221,7 @@ struct ContentView: View {
                                 .font(.callout.weight(.medium))
                                 .lineLimit(1)
                                 .truncationMode(.middle)
-                            Text("Used for every selected video.")
+                            Text("将用于所有待转换视频。")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -229,9 +231,9 @@ struct ContentView: View {
                         Image(systemName: "photo.on.rectangle.angled")
                             .font(.system(size: 34))
                             .foregroundStyle(.secondary)
-                        Text("Automatic frame")
+                        Text("自动封面")
                             .font(.callout.weight(.medium))
-                        Text("A middle frame is used when no custom cover is selected.")
+                        Text("未选择封面时，会使用视频中间帧。")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -246,7 +248,7 @@ struct ContentView: View {
                 Button {
                     chooseCover()
                 } label: {
-                    Label("Choose Cover", systemImage: "photo.badge.plus")
+                    Label("选择图片", systemImage: "photo.badge.plus")
                 }
                 .disabled(isConverting)
 
@@ -255,14 +257,14 @@ struct ContentView: View {
                         framePickerRequest = FramePickerRequest(videoURL: firstVideo)
                     }
                 } label: {
-                    Label("Pick Frame", systemImage: "film")
+                    Label("选帧", systemImage: "film")
                 }
                 .disabled(selectedVideos.isEmpty || isConverting)
 
                 Button {
                     coverImageURL = nil
                 } label: {
-                    Label("Reset", systemImage: "xmark.circle")
+                    Label("重置", systemImage: "xmark.circle")
                 }
                 .disabled(coverImageURL == nil || isConverting)
             }
@@ -270,11 +272,11 @@ struct ContentView: View {
             Divider()
 
             VStack(alignment: .leading, spacing: 10) {
-                Label("Destination", systemImage: "photo.stack")
+                Label("导入位置", systemImage: "photo.stack")
                     .font(.headline)
-                Text("Photos.app")
+                Text("照片 App")
                     .font(.title3.weight(.semibold))
-                Text("Each converted item is imported as a Live Photo.")
+                Text("每个视频都会作为 Live Photo 导入。")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
@@ -286,7 +288,7 @@ struct ContentView: View {
                     framePickerRequest = FramePickerRequest(videoURL: firstVideo)
                 }
             } label: {
-                Label("Pick Cover From Video", systemImage: "slider.horizontal.below.sun.max")
+                Label("从视频选择封面", systemImage: "slider.horizontal.below.sun.max")
                     .frame(maxWidth: .infinity)
             }
             .disabled(selectedVideos.isEmpty || isConverting)
@@ -294,7 +296,7 @@ struct ContentView: View {
             Button {
                 Task { await convertBatch() }
             } label: {
-                Label("Create Live Photos", systemImage: "livephoto")
+                Label("创建 Live Photo", systemImage: "livephoto")
                     .frame(maxWidth: .infinity)
             }
             .controlSize(.large)
@@ -304,7 +306,7 @@ struct ContentView: View {
             Button {
                 openPhotos()
             } label: {
-                Label("Open Photos", systemImage: "photo.on.rectangle")
+                Label("打开「照片」", systemImage: "photo.on.rectangle")
                     .frame(maxWidth: .infinity)
             }
             .disabled(importedCount == 0)
@@ -332,7 +334,7 @@ struct ContentView: View {
                 .controlSize(.large)
 
             if importedCount > 0 {
-                Label("\(importedCount) imported", systemImage: "checkmark.circle.fill")
+                Label("已导入 \(importedCount) 个", systemImage: "checkmark.circle.fill")
                     .font(.callout.weight(.medium))
                     .foregroundStyle(.green)
             }
@@ -368,7 +370,7 @@ struct ContentView: View {
                 Image(systemName: "photo")
             }
             .buttonStyle(.borderless)
-            .help("Pick a cover frame from this video")
+            .help("从这个视频选择封面帧")
             .disabled(isConverting)
 
             Button {
@@ -423,7 +425,7 @@ struct ContentView: View {
             for (index, item) in selectedVideos.enumerated() {
                 let baseProgress = Double(index) / total
                 let slice = 1.0 / total
-                status = "Preparing \(item.url.lastPathComponent)..."
+                status = "正在准备 \(item.url.lastPathComponent)..."
 
                 let result = try await converter.convert(
                     videoURL: item.url,
@@ -432,21 +434,21 @@ struct ContentView: View {
                 ) { itemProgress in
                     Task { @MainActor in
                         progress = baseProgress + itemProgress * slice * 0.92
-                        status = itemProgress < 0.35 ? "Preparing cover for \(item.url.lastPathComponent)..." : "Writing \(item.url.lastPathComponent)..."
+                        status = itemProgress < 0.35 ? "正在准备 \(item.url.lastPathComponent) 的封面..." : "正在写入 \(item.url.lastPathComponent)..."
                     }
                 }
 
-                status = "Importing \(item.url.lastPathComponent) into Photos..."
+                status = "正在导入 \(item.url.lastPathComponent) 到「照片」..."
                 try await importer.importLivePhoto(result)
                 results.append(result)
                 importedCount += 1
                 progress = Double(index + 1) / total
             }
 
-            status = "Imported \(importedCount) Live Photo\(importedCount == 1 ? "" : "s") into Photos."
+            status = "已导入 \(importedCount) 个 Live Photo 到「照片」。"
         } catch {
             errorMessage = error.localizedDescription
-            status = "Stopped after importing \(importedCount) of \(selectedVideos.count)."
+            status = "已停止：共 \(selectedVideos.count) 个，已导入 \(importedCount) 个。"
         }
 
         isConverting = false
@@ -463,7 +465,7 @@ struct ContentView: View {
         results.removeAll()
         importedCount = 0
         progress = 0
-        status = selectedVideos.isEmpty ? "Drop videos here or choose a batch." : "\(selectedVideos.count) video\(selectedVideos.count == 1 ? "" : "s") ready."
+        status = selectedVideos.isEmpty ? "拖入视频，或选择一批视频开始。" : "\(selectedVideos.count) 个视频已准备好。"
     }
 
     private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
@@ -520,8 +522,8 @@ struct ContentView: View {
             let result = try await updateChecker.check()
             updateURL = result.releaseURL
             updateMessage = result.hasUpdate
-                ? "Version \(result.latestVersion) is available. You are running \(result.currentVersion)."
-                : "You are up to date. Current version: \(result.currentVersion)."
+                ? "发现新版本 \(result.latestVersion)。当前版本是 \(result.currentVersion)。"
+                : "已经是最新版本。当前版本：\(result.currentVersion)。"
         } catch {
             updateURL = nil
             updateMessage = error.localizedDescription
@@ -549,11 +551,31 @@ private struct CoverThumbnail: View {
     }
 }
 
+private struct ToolbarPillButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.callout.weight(.medium))
+            .foregroundStyle(.primary)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(
+                Capsule()
+                    .fill(.regularMaterial)
+                    .shadow(color: .black.opacity(configuration.isPressed ? 0.04 : 0.10), radius: 8, x: 0, y: 3)
+            )
+            .overlay(
+                Capsule()
+                    .stroke(Color.primary.opacity(0.12), lineWidth: 1)
+            )
+            .opacity(configuration.isPressed ? 0.75 : 1)
+    }
+}
+
 private struct AboutView: View {
     @Environment(\.dismiss) private var dismiss
 
     private var version: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "未知"
     }
 
     var body: some View {
@@ -569,11 +591,11 @@ private struct AboutView: View {
             VStack(spacing: 6) {
                 Text("LivePhotoMaker")
                     .font(.title.bold())
-                Text("Version \(version)")
+                Text("版本 \(version)")
                     .foregroundStyle(.secondary)
             }
 
-            Text("Batch convert local videos into Photos-ready Live Photos with optional custom covers.")
+            Text("批量把本地视频转换并导入「照片」，支持自定义封面。")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
                 .frame(width: 340)
@@ -583,7 +605,7 @@ private struct AboutView: View {
                     NSWorkspace.shared.open(URL(string: "https://github.com/Flywith24/LivePhotoMaker")!)
                 }
 
-                Button("Done") {
+                Button("完成") {
                     dismiss()
                 }
                 .buttonStyle(.borderedProminent)

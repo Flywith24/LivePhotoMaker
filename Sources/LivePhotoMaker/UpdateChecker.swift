@@ -30,7 +30,7 @@ enum UpdateCheckError: LocalizedError {
     case invalidResponse
 
     var errorDescription: String? {
-        "Could not check for updates."
+        "无法检查更新。"
     }
 }
 

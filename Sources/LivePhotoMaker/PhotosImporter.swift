@@ -8,9 +8,9 @@ enum PhotosImportError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .permissionDenied:
-            "Photos permission was not granted. Allow this app to add photos in System Settings, then try again."
+            "没有获得「照片」权限。请在系统设置中允许本 App 访问照片图库后重试。"
         case .importFailed:
-            "Photos could not import the Live Photo."
+            "「照片」无法导入这个 Live Photo。"
         }
     }
 }
