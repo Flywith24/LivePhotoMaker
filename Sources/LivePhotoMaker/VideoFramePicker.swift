@@ -49,7 +49,8 @@ struct VideoFramePicker: View {
                     ProgressView()
                 }
             }
-            .frame(width: 560, height: 315)
+            .aspectRatio(16 / 9, contentMode: .fit)
+            .frame(minWidth: 360, idealWidth: 560, maxWidth: .infinity)
 
             VStack(spacing: 8) {
                 Slider(value: $selectedTime, in: 0...max(duration, 0.1))
@@ -128,50 +129,90 @@ struct VideoFramePicker: View {
         defer { isSaving = false }
 
         do {
-            let image = try await extractCGImage(at: selectedTime)
-            let outputURL = FileManager.default.temporaryDirectory
+            let outputDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("LivePhotoMaker", isDirectory: true)
                 .appendingPathComponent("SelectedCovers", isDirectory: true)
-                .appendingPathComponent("\(UUID().uuidString).heic")
 
             try FileManager.default.createDirectory(
-                at: outputURL.deletingLastPathComponent(),
+                at: outputDirectory,
                 withIntermediateDirectories: true
             )
 
-            guard let destination = CGImageDestinationCreateWithURL(
-                outputURL as CFURL,
-                UTType.heic.identifier as CFString,
-                1,
-                nil
-            ) else {
-                throw CocoaError(.fileWriteUnknown)
-            }
-
-            var metadata: [CFString: Any] = [
-                kCGImagePropertyOrientation: 1,
-                kCGImageDestinationLossyCompressionQuality: 0.98
-            ]
-            addHDRImageDestinationOptions(to: &metadata)
-            CGImageDestinationAddImage(destination, image, metadata as CFDictionary)
-
-            guard CGImageDestinationFinalize(destination) else {
-                throw CocoaError(.fileWriteUnknown)
-            }
-
+            let image = try await extractCGImage(at: selectedTime, matchSourceDynamicRange: true)
+            let outputURL = try saveCoverImage(image, in: outputDirectory, baseName: UUID().uuidString)
             onChoose(outputURL)
             dismiss()
         } catch {
-            errorMessage = error.localizedDescription
+            do {
+                let outputDirectory = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("LivePhotoMaker", isDirectory: true)
+                    .appendingPathComponent("SelectedCovers", isDirectory: true)
+
+                try FileManager.default.createDirectory(
+                    at: outputDirectory,
+                    withIntermediateDirectories: true
+                )
+
+                let image = try await extractCGImage(at: selectedTime, matchSourceDynamicRange: false)
+                let outputURL = try saveCoverImage(image, in: outputDirectory, baseName: UUID().uuidString)
+                onChoose(outputURL)
+                dismiss()
+            } catch {
+                errorMessage = "无法保存这一帧，请换一帧或选择图片封面。"
+            }
         }
     }
 
+    private func saveCoverImage(_ image: CGImage, in outputDirectory: URL, baseName: String) throws -> URL {
+        let heicURL = outputDirectory.appendingPathComponent("\(baseName).heic")
+        if writeImage(image, to: heicURL, type: UTType.heic, includeHDROptions: true) ||
+            writeImage(image, to: heicURL, type: UTType.heic, includeHDROptions: false) {
+            return heicURL
+        }
+
+        let jpegURL = outputDirectory.appendingPathComponent("\(baseName).jpg")
+        if writeImage(image, to: jpegURL, type: UTType.jpeg, includeHDROptions: false) {
+            return jpegURL
+        }
+
+        throw CocoaError(.fileWriteUnknown)
+    }
+
+    private func writeImage(
+        _ image: CGImage,
+        to outputURL: URL,
+        type: UTType,
+        includeHDROptions: Bool
+    ) -> Bool {
+        try? FileManager.default.removeItem(at: outputURL)
+
+        guard let destination = CGImageDestinationCreateWithURL(
+            outputURL as CFURL,
+            type.identifier as CFString,
+            1,
+            nil
+        ) else {
+            return false
+        }
+
+        var metadata: [CFString: Any] = [
+            kCGImagePropertyOrientation: 1,
+            kCGImageDestinationLossyCompressionQuality: type == .jpeg ? 0.96 : 0.98
+        ]
+        if includeHDROptions {
+            addHDRImageDestinationOptions(to: &metadata)
+        }
+
+        CGImageDestinationAddImage(destination, image, metadata as CFDictionary)
+        return CGImageDestinationFinalize(destination)
+    }
+
     private func extractImage(at seconds: Double) async throws -> NSImage {
-        let image = try await extractCGImage(at: seconds)
+        let image = try await extractCGImage(at: seconds, matchSourceDynamicRange: false)
         return NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))
     }
 
-    private func extractCGImage(at seconds: Double) async throws -> CGImage {
+    private func extractCGImage(at seconds: Double, matchSourceDynamicRange: Bool) async throws -> CGImage {
         try await Task.detached(priority: .userInitiated) {
             let asset = AVURLAsset(url: videoURL)
             let generator = AVAssetImageGenerator(asset: asset)
@@ -179,7 +220,7 @@ struct VideoFramePicker: View {
             generator.requestedTimeToleranceBefore = CMTime(seconds: 0.08, preferredTimescale: 600)
             generator.requestedTimeToleranceAfter = CMTime(seconds: 0.08, preferredTimescale: 600)
             if #available(macOS 15.0, *) {
-                generator.dynamicRangePolicy = .matchSource
+                generator.dynamicRangePolicy = matchSourceDynamicRange ? .matchSource : .forceSDR
             }
             let time = CMTime(seconds: seconds, preferredTimescale: 600)
             return try generator.copyCGImage(at: time, actualTime: nil)

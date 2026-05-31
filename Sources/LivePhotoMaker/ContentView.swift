@@ -570,7 +570,7 @@ private struct CoverThumbnail: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                if let image = NSImage(contentsOf: url) {
+                if let image = previewImage(from: url) {
                     Image(nsImage: image)
                         .resizable()
                         .scaledToFill()
@@ -584,6 +584,23 @@ private struct CoverThumbnail: View {
             .background(.quaternary)
             .clipShape(RoundedRectangle(cornerRadius: 8))
         }
+    }
+
+    private func previewImage(from url: URL) -> NSImage? {
+        var options: [CFString: Any] = [
+            kCGImageSourceShouldCache: true
+        ]
+
+        if #available(macOS 14.0, *) {
+            options[kCGImageSourceDecodeRequest] = kCGImageSourceDecodeToSDR
+        }
+
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, options as CFDictionary),
+              let image = CGImageSourceCreateImageAtIndex(source, 0, options as CFDictionary) else {
+            return NSImage(contentsOf: url)
+        }
+
+        return NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))
     }
 }
 

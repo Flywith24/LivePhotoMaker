@@ -164,7 +164,42 @@ final class LivePhotoConverter: Sendable {
 
         let metadata = stillImageMetadata(
             assetIdentifier: assetIdentifier,
-            sourceProperties: sourceProperties
+            sourceProperties: sourceProperties,
+            includeHDROptions: true
+        )
+
+        CGImageDestinationAddImage(destination, image, metadata as CFDictionary)
+
+        if !CGImageDestinationFinalize(destination) {
+            try removeExistingFile(at: outputURL)
+            try writeStandardHEICImage(
+                image,
+                to: outputURL,
+                assetIdentifier: assetIdentifier,
+                sourceProperties: sourceProperties
+            )
+        }
+    }
+
+    private static func writeStandardHEICImage(
+        _ image: CGImage,
+        to outputURL: URL,
+        assetIdentifier: String,
+        sourceProperties: [CFString: Any]?
+    ) throws {
+        guard let destination = CGImageDestinationCreateWithURL(
+            outputURL as CFURL,
+            UTType.heic.identifier as CFString,
+            1,
+            nil
+        ) else {
+            throw LivePhotoConversionError.cannotCreateImageDestination
+        }
+
+        let metadata = stillImageMetadata(
+            assetIdentifier: assetIdentifier,
+            sourceProperties: sourceProperties,
+            includeHDROptions: false
         )
 
         CGImageDestinationAddImage(destination, image, metadata as CFDictionary)
@@ -191,7 +226,8 @@ final class LivePhotoConverter: Sendable {
 
         var metadata = stillImageMetadata(
             assetIdentifier: assetIdentifier,
-            sourceProperties: sourceProperties
+            sourceProperties: sourceProperties,
+            includeHDROptions: true
         )
         metadata[kCGImageDestinationPreserveGainMap] = true
         addHDRImageDestinationOptions(to: &metadata)
@@ -202,7 +238,8 @@ final class LivePhotoConverter: Sendable {
 
     private static func stillImageMetadata(
         assetIdentifier: String,
-        sourceProperties: [CFString: Any]?
+        sourceProperties: [CFString: Any]?,
+        includeHDROptions: Bool
     ) -> [CFString: Any] {
         var metadata = sourceProperties ?? [:]
         var makerApple = metadata[kCGImagePropertyMakerAppleDictionary] as? [String: Any] ?? [:]
@@ -210,7 +247,9 @@ final class LivePhotoConverter: Sendable {
         metadata[kCGImagePropertyMakerAppleDictionary] = makerApple
         metadata[kCGImagePropertyOrientation] = metadata[kCGImagePropertyOrientation] ?? 1
         metadata[kCGImageDestinationLossyCompressionQuality] = 0.98
-        addHDRImageDestinationOptions(to: &metadata)
+        if includeHDROptions {
+            addHDRImageDestinationOptions(to: &metadata)
+        }
         return metadata
     }
 
