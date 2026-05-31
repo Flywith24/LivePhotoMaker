@@ -132,7 +132,7 @@ struct VideoFramePicker: View {
             let outputURL = FileManager.default.temporaryDirectory
                 .appendingPathComponent("LivePhotoMaker", isDirectory: true)
                 .appendingPathComponent("SelectedCovers", isDirectory: true)
-                .appendingPathComponent("\(UUID().uuidString).jpg")
+                .appendingPathComponent("\(UUID().uuidString).heic")
 
             try FileManager.default.createDirectory(
                 at: outputURL.deletingLastPathComponent(),
@@ -141,17 +141,19 @@ struct VideoFramePicker: View {
 
             guard let destination = CGImageDestinationCreateWithURL(
                 outputURL as CFURL,
-                UTType.jpeg.identifier as CFString,
+                UTType.heic.identifier as CFString,
                 1,
                 nil
             ) else {
                 throw CocoaError(.fileWriteUnknown)
             }
 
-            CGImageDestinationAddImage(destination, image, [
+            var metadata: [CFString: Any] = [
                 kCGImagePropertyOrientation: 1,
-                kCGImageDestinationLossyCompressionQuality: 0.96
-            ] as CFDictionary)
+                kCGImageDestinationLossyCompressionQuality: 0.98
+            ]
+            addHDRImageDestinationOptions(to: &metadata)
+            CGImageDestinationAddImage(destination, image, metadata as CFDictionary)
 
             guard CGImageDestinationFinalize(destination) else {
                 throw CocoaError(.fileWriteUnknown)
@@ -176,9 +178,28 @@ struct VideoFramePicker: View {
             generator.appliesPreferredTrackTransform = true
             generator.requestedTimeToleranceBefore = CMTime(seconds: 0.08, preferredTimescale: 600)
             generator.requestedTimeToleranceAfter = CMTime(seconds: 0.08, preferredTimescale: 600)
+            if #available(macOS 15.0, *) {
+                generator.dynamicRangePolicy = .matchSource
+            }
             let time = CMTime(seconds: seconds, preferredTimescale: 600)
             return try generator.copyCGImage(at: time, actualTime: nil)
         }.value
+    }
+
+    private func addHDRImageDestinationOptions(to metadata: inout [CFString: Any]) {
+        if #available(macOS 15.0, *) {
+            metadata[kCGImageDestinationEncodeRequest] = kCGImageDestinationEncodeToISOHDR
+            metadata[kCGImageDestinationEncodeRequestOptions] = [
+                kCGImageDestinationEncodeBaseIsSDR: true
+            ]
+        }
+
+        if #available(macOS 16.0, *) {
+            var options = metadata[kCGImageDestinationEncodeRequestOptions] as? [CFString: Any] ?? [:]
+            options[kCGImageDestinationEncodeGenerateGainMapWithBaseImage] = true
+            options[kCGImageDestinationEncodeGainMapSubsampleFactor] = 2
+            metadata[kCGImageDestinationEncodeRequestOptions] = options
+        }
     }
 
     private func timeString(_ seconds: Double) -> String {

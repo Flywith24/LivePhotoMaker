@@ -103,6 +103,9 @@ final class LivePhotoConverter: Sendable {
         generator.appliesPreferredTrackTransform = true
         generator.requestedTimeToleranceBefore = .zero
         generator.requestedTimeToleranceAfter = .zero
+        if #available(macOS 15.0, *) {
+            generator.dynamicRangePolicy = .matchSource
+        }
 
         let requestedSeconds = min(max(duration * 0.5, 0.1), max(duration - 0.1, 0.1))
         let requestedTime = CMTime(seconds: requestedSeconds, preferredTimescale: 600)
@@ -121,12 +124,21 @@ final class LivePhotoConverter: Sendable {
         to outputURL: URL,
         assetIdentifier: String
     ) throws {
-        guard let source = CGImageSourceCreateWithURL(coverURL as CFURL, nil),
-              let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
+        guard let source = CGImageSourceCreateWithURL(coverURL as CFURL, imageSourceOptions()),
+              let image = CGImageSourceCreateImageAtIndex(source, 0, imageSourceOptions()) else {
             throw LivePhotoConversionError.cannotWriteImage
         }
 
         let sourceProperties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+        if try writeImageFromSourceIfPossible(
+            source,
+            to: outputURL,
+            assetIdentifier: assetIdentifier,
+            sourceProperties: sourceProperties
+        ) {
+            return
+        }
+
         try writeHEICImage(
             image,
             to: outputURL,
@@ -162,6 +174,32 @@ final class LivePhotoConverter: Sendable {
         }
     }
 
+    private static func writeImageFromSourceIfPossible(
+        _ source: CGImageSource,
+        to outputURL: URL,
+        assetIdentifier: String,
+        sourceProperties: [CFString: Any]?
+    ) throws -> Bool {
+        guard let destination = CGImageDestinationCreateWithURL(
+            outputURL as CFURL,
+            UTType.heic.identifier as CFString,
+            1,
+            nil
+        ) else {
+            throw LivePhotoConversionError.cannotCreateImageDestination
+        }
+
+        var metadata = stillImageMetadata(
+            assetIdentifier: assetIdentifier,
+            sourceProperties: sourceProperties
+        )
+        metadata[kCGImageDestinationPreserveGainMap] = true
+        addHDRImageDestinationOptions(to: &metadata)
+
+        CGImageDestinationAddImageFromSource(destination, source, 0, metadata as CFDictionary)
+        return CGImageDestinationFinalize(destination)
+    }
+
     private static func stillImageMetadata(
         assetIdentifier: String,
         sourceProperties: [CFString: Any]?
@@ -172,7 +210,36 @@ final class LivePhotoConverter: Sendable {
         metadata[kCGImagePropertyMakerAppleDictionary] = makerApple
         metadata[kCGImagePropertyOrientation] = metadata[kCGImagePropertyOrientation] ?? 1
         metadata[kCGImageDestinationLossyCompressionQuality] = 0.98
+        addHDRImageDestinationOptions(to: &metadata)
         return metadata
+    }
+
+    private static func addHDRImageDestinationOptions(to metadata: inout [CFString: Any]) {
+        if #available(macOS 15.0, *) {
+            metadata[kCGImageDestinationEncodeRequest] = kCGImageDestinationEncodeToISOHDR
+            metadata[kCGImageDestinationEncodeRequestOptions] = [
+                kCGImageDestinationEncodeBaseIsSDR: true
+            ]
+        }
+
+        if #available(macOS 16.0, *) {
+            var options = metadata[kCGImageDestinationEncodeRequestOptions] as? [CFString: Any] ?? [:]
+            options[kCGImageDestinationEncodeGenerateGainMapWithBaseImage] = true
+            options[kCGImageDestinationEncodeGainMapSubsampleFactor] = 2
+            metadata[kCGImageDestinationEncodeRequestOptions] = options
+        }
+    }
+
+    private static func imageSourceOptions() -> CFDictionary? {
+        var options: [CFString: Any] = [
+            kCGImageSourceShouldCache: true
+        ]
+
+        if #available(macOS 14.0, *) {
+            options[kCGImageSourceDecodeRequest] = kCGImageSourceDecodeToHDR
+        }
+
+        return options as CFDictionary
     }
 
     private static func writePairedMovie(
@@ -194,7 +261,7 @@ final class LivePhotoConverter: Sendable {
         writer.metadata = movieMetadata(from: asset, assetIdentifier: assetIdentifier)
 
         var copyPairs: [(AVAssetReaderTrackOutput, AVAssetWriterInput)] = []
-        for track in asset.tracks where track.mediaType == .video || track.mediaType == .audio {
+        for track in asset.tracks where shouldCopyTrack(track) {
             let readerOutput = AVAssetReaderTrackOutput(track: track, outputSettings: nil)
             readerOutput.alwaysCopiesSampleData = false
 
@@ -341,6 +408,12 @@ final class LivePhotoConverter: Sendable {
         var metadata = asset.metadata.filter { !isLivePhotoPairingMetadata($0) }
         metadata.append(contentIdentifierMetadataItem(assetIdentifier))
         return metadata
+    }
+
+    private static func shouldCopyTrack(_ track: AVAssetTrack) -> Bool {
+        track.mediaType == .video ||
+            track.mediaType == .audio ||
+            track.mediaType == .auxiliaryPicture
     }
 
     private static func isLivePhotoPairingMetadata(_ item: AVMetadataItem) -> Bool {
