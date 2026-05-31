@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 
 struct FramePickerRequest: Identifiable {
     let id = UUID()
+    let videoID: UUID
     let videoURL: URL
 }
 

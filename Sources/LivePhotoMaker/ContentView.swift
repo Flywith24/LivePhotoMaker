@@ -3,13 +3,20 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 private struct VideoItem: Identifiable, Hashable {
-    let id = UUID()
+    let id: UUID
     let url: URL
+    var coverImageURL: URL?
+
+    init(id: UUID = UUID(), url: URL, coverImageURL: URL? = nil) {
+        self.id = id
+        self.url = url
+        self.coverImageURL = coverImageURL
+    }
 }
 
 struct ContentView: View {
     @State private var selectedVideos: [VideoItem] = []
-    @State private var coverImageURL: URL?
+    @State private var selectedVideoID: VideoItem.ID?
     @State private var isDropTargeted = false
     @State private var isConverting = false
     @State private var isCheckingUpdates = false
@@ -78,7 +85,7 @@ struct ContentView: View {
         }
         .sheet(item: $framePickerRequest) { request in
             VideoFramePicker(videoURL: request.videoURL) { coverURL in
-                coverImageURL = coverURL
+                setCover(coverURL, for: request.videoID)
                 status = "已从 \(request.videoURL.lastPathComponent) 选择封面帧。"
             }
         }
@@ -164,6 +171,7 @@ struct ContentView: View {
 
                 Button {
                     selectedVideos.removeAll()
+                    selectedVideoID = nil
                     results.removeAll()
                     importedCount = 0
                     progress = 0
@@ -211,7 +219,7 @@ struct ContentView: View {
                 .font(.headline)
 
             VStack(alignment: .leading, spacing: 10) {
-                if let coverImageURL {
+                if let selectedItem, let coverImageURL = selectedItem.coverImageURL {
                     HStack(spacing: 12) {
                         CoverThumbnail(url: coverImageURL)
                             .frame(width: 74, height: 74)
@@ -221,7 +229,7 @@ struct ContentView: View {
                                 .font(.callout.weight(.medium))
                                 .lineLimit(1)
                                 .truncationMode(.middle)
-                            Text("将用于所有待转换视频。")
+                            Text("仅用于当前选中的视频。")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -233,7 +241,7 @@ struct ContentView: View {
                             .foregroundStyle(.secondary)
                         Text("自动封面")
                             .font(.callout.weight(.medium))
-                        Text("未选择封面时，会使用视频中间帧。")
+                        Text(selectedItem == nil ? "请先在左侧选择一个视频。" : "未选择封面时，会使用该视频中间帧。")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -250,23 +258,25 @@ struct ContentView: View {
                 } label: {
                     Label("选择图片", systemImage: "photo.badge.plus")
                 }
-                .disabled(isConverting)
+                .disabled(selectedVideoID == nil || isConverting)
 
                 Button {
-                    if let firstVideo = selectedVideos.first?.url {
-                        framePickerRequest = FramePickerRequest(videoURL: firstVideo)
+                    if let selectedItem {
+                        framePickerRequest = FramePickerRequest(videoID: selectedItem.id, videoURL: selectedItem.url)
                     }
                 } label: {
                     Label("选帧", systemImage: "film")
                 }
-                .disabled(selectedVideos.isEmpty || isConverting)
+                .disabled(selectedVideoID == nil || isConverting)
 
                 Button {
-                    coverImageURL = nil
+                    if let selectedVideoID {
+                        setCover(nil, for: selectedVideoID)
+                    }
                 } label: {
                     Label("重置", systemImage: "xmark.circle")
                 }
-                .disabled(coverImageURL == nil || isConverting)
+                .disabled(selectedItem?.coverImageURL == nil || isConverting)
             }
 
             Divider()
@@ -284,14 +294,14 @@ struct ContentView: View {
             Spacer()
 
             Button {
-                if let firstVideo = selectedVideos.first?.url {
-                    framePickerRequest = FramePickerRequest(videoURL: firstVideo)
+                if let selectedItem {
+                    framePickerRequest = FramePickerRequest(videoID: selectedItem.id, videoURL: selectedItem.url)
                 }
             } label: {
                 Label("从视频选择封面", systemImage: "slider.horizontal.below.sun.max")
                     .frame(maxWidth: .infinity)
             }
-            .disabled(selectedVideos.isEmpty || isConverting)
+            .disabled(selectedVideoID == nil || isConverting)
 
             Button {
                 Task { await convertBatch() }
@@ -365,9 +375,10 @@ struct ContentView: View {
             Spacer()
 
             Button {
-                framePickerRequest = FramePickerRequest(videoURL: item.url)
+                selectedVideoID = item.id
+                framePickerRequest = FramePickerRequest(videoID: item.id, videoURL: item.url)
             } label: {
-                Image(systemName: "photo")
+                Image(systemName: item.coverImageURL == nil ? "photo" : "photo.fill")
             }
             .buttonStyle(.borderless)
             .help("从这个视频选择封面帧")
@@ -375,6 +386,9 @@ struct ContentView: View {
 
             Button {
                 selectedVideos.removeAll { $0.id == item.id }
+                if selectedVideoID == item.id {
+                    selectedVideoID = selectedVideos.first?.id
+                }
             } label: {
                 Image(systemName: "xmark")
             }
@@ -382,7 +396,11 @@ struct ContentView: View {
             .disabled(isConverting)
         }
         .padding(10)
+        .background(item.id == selectedVideoID ? Color.accentColor.opacity(0.12) : Color.clear, in: RoundedRectangle(cornerRadius: 8))
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .onTapGesture {
+            selectedVideoID = item.id
+        }
     }
 
     private func chooseVideos() {
@@ -405,7 +423,8 @@ struct ContentView: View {
         panel.canChooseFiles = true
 
         if panel.runModal() == .OK {
-            coverImageURL = panel.url
+            guard let selectedVideoID else { return }
+            setCover(panel.url, for: selectedVideoID)
         }
     }
 
@@ -430,7 +449,7 @@ struct ContentView: View {
                 let result = try await converter.convert(
                     videoURL: item.url,
                     outputDirectory: temporaryOutputFolder(),
-                    coverImageURL: coverImageURL
+                    coverImageURL: item.coverImageURL
                 ) { itemProgress in
                     Task { @MainActor in
                         progress = baseProgress + itemProgress * slice * 0.92
@@ -459,9 +478,12 @@ struct ContentView: View {
         let videos = urls
             .filter(isVideoURL)
             .filter { !existing.contains($0) }
-            .map(VideoItem.init(url:))
+            .map { VideoItem(url: $0) }
 
         selectedVideos.append(contentsOf: videos)
+        if selectedVideoID == nil {
+            selectedVideoID = selectedVideos.first?.id
+        }
         results.removeAll()
         importedCount = 0
         progress = 0
@@ -498,6 +520,17 @@ struct ContentView: View {
             return false
         }
         return type.conforms(to: .movie) || type.conforms(to: .video)
+    }
+
+    private var selectedItem: VideoItem? {
+        guard let selectedVideoID else { return selectedVideos.first }
+        return selectedVideos.first { $0.id == selectedVideoID }
+    }
+
+    private func setCover(_ coverURL: URL?, for videoID: VideoItem.ID) {
+        guard let index = selectedVideos.firstIndex(where: { $0.id == videoID }) else { return }
+        selectedVideos[index].coverImageURL = coverURL
+        selectedVideoID = videoID
     }
 
     private func temporaryOutputFolder() -> URL {
