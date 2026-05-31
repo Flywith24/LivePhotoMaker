@@ -236,8 +236,8 @@ struct VideoFramePicker: View {
 
         if #available(macOS 16.0, *) {
             var options = metadata[kCGImageDestinationEncodeRequestOptions] as? [CFString: Any] ?? [:]
-            options[kCGImageDestinationEncodeGenerateGainMapWithBaseImage] = true
-            options[kCGImageDestinationEncodeGainMapSubsampleFactor] = 2
+            options[ImageIOHDRKeys.encodeGenerateGainMapWithBaseImage] = true
+            options[ImageIOHDRKeys.encodeGainMapSubsampleFactor] = 2
             metadata[kCGImageDestinationEncodeRequestOptions] = options
         }
     }
