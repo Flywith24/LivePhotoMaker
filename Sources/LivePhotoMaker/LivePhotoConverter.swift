@@ -24,7 +24,7 @@ enum LivePhotoConversionError: LocalizedError {
         case .unreadableVideo:
             "无法读取所选视频。"
         case .cannotCreateImageDestination:
-            "无法创建输出 JPG。"
+            "无法创建输出 HEIC。"
         case .cannotWriteImage:
             "无法写入 Live Photo 封面元数据。"
         case .cannotReadMovie:
@@ -49,7 +49,7 @@ final class LivePhotoConverter: Sendable {
         try await Task.detached(priority: .userInitiated) {
             let assetIdentifier = UUID().uuidString
             let baseName = "IMG_\(Self.timestampName())"
-            let photoURL = outputDirectory.appendingPathComponent("\(baseName).JPG")
+            let photoURL = outputDirectory.appendingPathComponent("\(baseName).HEIC")
             let movieURL = outputDirectory.appendingPathComponent("\(baseName).MOV")
 
             try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
@@ -108,27 +108,12 @@ final class LivePhotoConverter: Sendable {
         let requestedTime = CMTime(seconds: requestedSeconds, preferredTimescale: 600)
         let image = try generator.copyCGImage(at: requestedTime, actualTime: nil)
 
-        guard let destination = CGImageDestinationCreateWithURL(
-            outputURL as CFURL,
-            UTType.jpeg.identifier as CFString,
-            1,
-            nil
-        ) else {
-            throw LivePhotoConversionError.cannotCreateImageDestination
-        }
-
-        let metadata: [CFString: Any] = [
-            kCGImagePropertyMakerAppleDictionary: [
-                "17": assetIdentifier
-            ],
-            kCGImagePropertyOrientation: 1
-        ]
-
-        CGImageDestinationAddImage(destination, image, metadata as CFDictionary)
-
-        guard CGImageDestinationFinalize(destination) else {
-            throw LivePhotoConversionError.cannotWriteImage
-        }
+        try writeHEICImage(
+            image,
+            to: outputURL,
+            assetIdentifier: assetIdentifier,
+            sourceProperties: nil
+        )
     }
 
     private static func writeCustomCover(
@@ -137,30 +122,57 @@ final class LivePhotoConverter: Sendable {
         assetIdentifier: String
     ) throws {
         guard let source = CGImageSourceCreateWithURL(coverURL as CFURL, nil),
-              let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
-              let destination = CGImageDestinationCreateWithURL(
-                outputURL as CFURL,
-                UTType.jpeg.identifier as CFString,
-                1,
-                nil
-              ) else {
+              let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
             throw LivePhotoConversionError.cannotWriteImage
         }
 
         let sourceProperties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
-        let orientation = sourceProperties?[kCGImagePropertyOrientation] ?? 1
-        let metadata: [CFString: Any] = [
-            kCGImagePropertyMakerAppleDictionary: [
-                "17": assetIdentifier
-            ],
-            kCGImagePropertyOrientation: orientation
-        ]
+        try writeHEICImage(
+            image,
+            to: outputURL,
+            assetIdentifier: assetIdentifier,
+            sourceProperties: sourceProperties
+        )
+    }
+
+    private static func writeHEICImage(
+        _ image: CGImage,
+        to outputURL: URL,
+        assetIdentifier: String,
+        sourceProperties: [CFString: Any]?
+    ) throws {
+        guard let destination = CGImageDestinationCreateWithURL(
+            outputURL as CFURL,
+            UTType.heic.identifier as CFString,
+            1,
+            nil
+        ) else {
+            throw LivePhotoConversionError.cannotCreateImageDestination
+        }
+
+        let metadata = stillImageMetadata(
+            assetIdentifier: assetIdentifier,
+            sourceProperties: sourceProperties
+        )
 
         CGImageDestinationAddImage(destination, image, metadata as CFDictionary)
 
         guard CGImageDestinationFinalize(destination) else {
             throw LivePhotoConversionError.cannotWriteImage
         }
+    }
+
+    private static func stillImageMetadata(
+        assetIdentifier: String,
+        sourceProperties: [CFString: Any]?
+    ) -> [CFString: Any] {
+        var metadata = sourceProperties ?? [:]
+        var makerApple = metadata[kCGImagePropertyMakerAppleDictionary] as? [String: Any] ?? [:]
+        makerApple["17"] = assetIdentifier
+        metadata[kCGImagePropertyMakerAppleDictionary] = makerApple
+        metadata[kCGImagePropertyOrientation] = metadata[kCGImagePropertyOrientation] ?? 1
+        metadata[kCGImageDestinationLossyCompressionQuality] = 0.98
+        return metadata
     }
 
     private static func writePairedMovie(

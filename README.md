@@ -76,7 +76,7 @@ xattr -dr com.apple.quarantine /Applications/LivePhotoMaker.app
 .build/debug/LivePhotoMaker --convert /path/to/video.mp4 /path/to/output-folder /path/to/cover.png
 ```
 
-输出目录会得到一组同名的 `JPG` 和 `MOV` 文件。
+输出目录会得到一组同名的 `HEIC` 和 `MOV` 文件。
 
 ## GitHub Actions
 
@@ -97,7 +97,7 @@ git push origin v1.1.1
 Photos 识别 Live Photo 需要一张静态照片和一个配对视频。LivePhotoMaker 会：
 
 - 从视频中提取中间帧，或使用用户选择的封面
-- 给 JPG 写入 Apple Maker metadata 中的 asset identifier
+- 给 HEIC 写入 Apple Maker metadata 中的 asset identifier
 - 将视频重新封装为 MOV
 - 给 MOV 写入 `com.apple.quicktime.content.identifier`
 - 添加 `com.apple.quicktime.still-image-time` metadata track
@@ -105,4 +105,6 @@ Photos 识别 Live Photo 需要一张静态照片和一个配对视频。LivePho
 
 ## 关于 HDR 与清晰度
 
-视频轨道会尽量 passthrough 重新封装，避免重编码造成损失。但封面目前写出为 JPG，因此它不是 iPhone 原生 HEIC/HDR 封面，也不包含完整 HDR gain map。对普通视频已经够用；如果要追求更接近 iPhone 原生 Live Photo 的 HDR 效果，后续需要改成 HEIC 封面和更完整的 HDR 元数据处理。
+视频轨道会尽量 passthrough 重新封装，避免重编码造成损失。封面已改为 HEIC 输出，并会尽量保留自定义封面的基础图片属性和颜色信息，因此比 JPG 更接近 iPhone 原生 Live Photo 的资源形态。
+
+需要注意的是，这还不是完整的 iPhone 原生 HDR 管线：当前不会生成 Apple Photos 使用的 HDR gain map，也没有完整复刻 iPhone 拍摄时写入的所有 HDR/色彩元数据。若要继续追求更接近原生效果，后续可以加入 HDR-aware 的视频帧提取、HEIC auxiliary image/gain map 写入，以及更完整的色彩空间和 QuickTime HDR metadata 保真。
