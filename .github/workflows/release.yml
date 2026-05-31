@@ -1,0 +1,33 @@
+name: Release macOS App
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build app
+        run: ./build_app.sh
+
+      - name: Package app
+        run: ditto -c -k --keepParent .build/LivePhotoMaker.app LivePhotoMaker-${{ github.ref_name }}-macos.zip
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: LivePhotoMaker ${{ github.ref_name }}
+          body: |
+            macOS App，用于将本地视频转换并导入「照片」App，让系统识别为 Live Photo。
+
+            下载 `LivePhotoMaker-${{ github.ref_name }}-macos.zip`，解压后双击运行。
+          files: LivePhotoMaker-${{ github.ref_name }}-macos.zip
