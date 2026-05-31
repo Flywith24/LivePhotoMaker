@@ -307,11 +307,7 @@ final class LivePhotoConverter: Sendable {
             guard reader.canAdd(readerOutput) else { continue }
             reader.add(readerOutput)
 
-            let writerInput = AVAssetWriterInput(
-                mediaType: track.mediaType,
-                outputSettings: nil,
-                sourceFormatHint: track.formatDescriptions.first as! CMFormatDescription?
-            )
+            let writerInput = AVAssetWriterInput(mediaType: track.mediaType, outputSettings: nil)
             writerInput.expectsMediaDataInRealTime = false
             writerInput.metadata = track.metadata
             if track.mediaType == .video {

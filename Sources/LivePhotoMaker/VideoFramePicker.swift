@@ -138,7 +138,7 @@ struct VideoFramePicker: View {
                 withIntermediateDirectories: true
             )
 
-            let image = try await extractCGImage(at: selectedTime, matchSourceDynamicRange: true)
+            let image = try await extractCGImage(at: selectedTime, matchSourceDynamicRange: false)
             let outputURL = try saveCoverImage(image, in: outputDirectory, baseName: UUID().uuidString)
             onChoose(outputURL)
             dismiss()
@@ -165,8 +165,7 @@ struct VideoFramePicker: View {
 
     private func saveCoverImage(_ image: CGImage, in outputDirectory: URL, baseName: String) throws -> URL {
         let heicURL = outputDirectory.appendingPathComponent("\(baseName).heic")
-        if writeImage(image, to: heicURL, type: UTType.heic, includeHDROptions: true) ||
-            writeImage(image, to: heicURL, type: UTType.heic, includeHDROptions: false) {
+        if writeImage(image, to: heicURL, type: UTType.heic, includeHDROptions: false) {
             return heicURL
         }
 

@@ -97,17 +97,17 @@ git push origin v1.1.1
 Photos 识别 Live Photo 需要一张静态照片和一个配对视频。LivePhotoMaker 会：
 
 - 从视频中提取中间帧，或使用用户选择的封面
-- 抽帧写出时在支持的系统上匹配源视频动态范围，界面预览使用 SDR 显示以避免偏色
+- 自动抽帧写出时在支持的系统上匹配源视频动态范围，手动选帧会保存为更兼容的 SDR HEIC 以避免预览偏色
 - 给 HEIC 写入 Apple Maker metadata 中的 asset identifier
 - 在支持的系统上按 ISO HDR HEIC 写出，并请求生成/保留 gain map
 - 将视频重新封装为 MOV
-- 尽量保留源视频的容器 metadata、轨道 metadata、format description 和辅助图像轨道
+- 尽量保留源视频的容器 metadata、轨道 metadata 和辅助图像轨道
 - 给 MOV 写入 `com.apple.quicktime.content.identifier`
 - 添加 `com.apple.quicktime.still-image-time` metadata track
 - 通过 Photos framework 用 `.photo` 和 `.pairedVideo` 资源类型导入
 
 ## 关于 HDR 与清晰度
 
-视频轨道会尽量 passthrough 重新封装，避免重编码造成损失。封面最终会写为 HEIC；JPG、PNG、HEIC 等常见图片都可作为输入封面。写出时会在 macOS 支持时请求 HDR 解码、ISO HDR 编码和 gain map 生成；如果用户选择的 HEIC 封面本身带有 gain map，也会尽量保留。若 HDR 写出失败，会自动回退到普通 HEIC，避免因为单个封面或视频帧不兼容而转换失败。MOV 输出会尽量继承源视频的容器 metadata、轨道 metadata、format description 和辅助图像轨道，降低重新封装时丢失色彩/HDR 相关信息的概率。因此它比 JPG 封面和只写基础 MOV metadata 更接近 iPhone 原生 Live Photo 的资源形态。
+视频轨道会尽量 passthrough 重新封装，避免重编码造成损失。封面最终会写为 HEIC；JPG、PNG、HEIC 等常见图片都可作为输入封面。自动抽帧和自定义封面写出时会在 macOS 支持时请求 HDR 解码、ISO HDR 编码和 gain map 生成；如果用户选择的 HEIC 封面本身带有 gain map，也会尽量保留。若 HDR 写出失败，会自动回退到普通 HEIC，避免因为单个封面或视频帧不兼容而转换失败。MOV 输出会尽量继承源视频的容器 metadata、轨道 metadata 和辅助图像轨道，降低重新封装时丢失色彩/HDR 相关信息的概率。因此它比 JPG 封面和只写基础 MOV metadata 更接近 iPhone 原生 Live Photo 的资源形态。
 
 需要注意的是，gain map 是否实际写入取决于 macOS/ImageIO 版本、输入帧是否包含足够的 HDR 信息，以及系统编码器是否接受该输入。LivePhotoMaker 会走最高保真路径并保留可用信息，但仍不能保证完全复刻 iPhone 相机拍摄时的所有私有元数据。
