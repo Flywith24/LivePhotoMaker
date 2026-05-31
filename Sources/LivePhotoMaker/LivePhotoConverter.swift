@@ -447,7 +447,8 @@ final class LivePhotoConverter: Sendable {
 
     private static func shouldCopyTrack(_ track: AVAssetTrack) -> Bool {
         track.mediaType == .video ||
-            track.mediaType == .audio
+            track.mediaType == .audio ||
+            track.mediaType == .auxiliaryPicture
     }
 
     private static func isLivePhotoPairingMetadata(_ item: AVMetadataItem) -> Bool {

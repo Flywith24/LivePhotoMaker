@@ -164,14 +164,14 @@ struct VideoFramePicker: View {
     }
 
     private func saveCoverImage(_ image: CGImage, in outputDirectory: URL, baseName: String) throws -> URL {
-        let heicURL = outputDirectory.appendingPathComponent("\(baseName).heic")
-        if writeImage(image, to: heicURL, type: UTType.heic, includeHDROptions: false) {
-            return heicURL
-        }
-
         let jpegURL = outputDirectory.appendingPathComponent("\(baseName).jpg")
         if writeImage(image, to: jpegURL, type: UTType.jpeg, includeHDROptions: false) {
             return jpegURL
+        }
+
+        let heicURL = outputDirectory.appendingPathComponent("\(baseName).heic")
+        if writeImage(image, to: heicURL, type: UTType.heic, includeHDROptions: false) {
+            return heicURL
         }
 
         throw CocoaError(.fileWriteUnknown)
