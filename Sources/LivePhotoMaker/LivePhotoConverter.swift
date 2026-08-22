@@ -115,7 +115,8 @@ final class LivePhotoConverter: Sendable {
             image,
             to: outputURL,
             assetIdentifier: assetIdentifier,
-            sourceProperties: nil
+            sourceProperties: nil,
+            includeHDROptions: assetContainsHDRVideo(asset)
         )
     }
 
@@ -130,11 +131,13 @@ final class LivePhotoConverter: Sendable {
         }
 
         let sourceProperties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+        let includeHDROptions = imageSourceContainsHDRGainMap(source)
         if try writeImageFromSourceIfPossible(
             source,
             to: outputURL,
             assetIdentifier: assetIdentifier,
-            sourceProperties: sourceProperties
+            sourceProperties: sourceProperties,
+            includeHDROptions: includeHDROptions
         ) {
             return
         }
@@ -143,7 +146,8 @@ final class LivePhotoConverter: Sendable {
             image,
             to: outputURL,
             assetIdentifier: assetIdentifier,
-            sourceProperties: sourceProperties
+            sourceProperties: sourceProperties,
+            includeHDROptions: includeHDROptions
         )
     }
 
@@ -151,7 +155,8 @@ final class LivePhotoConverter: Sendable {
         _ image: CGImage,
         to outputURL: URL,
         assetIdentifier: String,
-        sourceProperties: [CFString: Any]?
+        sourceProperties: [CFString: Any]?,
+        includeHDROptions: Bool
     ) throws {
         guard let destination = CGImageDestinationCreateWithURL(
             outputURL as CFURL,
@@ -165,7 +170,7 @@ final class LivePhotoConverter: Sendable {
         let metadata = stillImageMetadata(
             assetIdentifier: assetIdentifier,
             sourceProperties: sourceProperties,
-            includeHDROptions: true
+            includeHDROptions: includeHDROptions
         )
 
         CGImageDestinationAddImage(destination, image, metadata as CFDictionary)
@@ -213,7 +218,8 @@ final class LivePhotoConverter: Sendable {
         _ source: CGImageSource,
         to outputURL: URL,
         assetIdentifier: String,
-        sourceProperties: [CFString: Any]?
+        sourceProperties: [CFString: Any]?,
+        includeHDROptions: Bool
     ) throws -> Bool {
         guard let destination = CGImageDestinationCreateWithURL(
             outputURL as CFURL,
@@ -227,13 +233,28 @@ final class LivePhotoConverter: Sendable {
         var metadata = stillImageMetadata(
             assetIdentifier: assetIdentifier,
             sourceProperties: sourceProperties,
-            includeHDROptions: true
+            includeHDROptions: includeHDROptions
         )
-        metadata[kCGImageDestinationPreserveGainMap] = true
-        addHDRImageDestinationOptions(to: &metadata)
+        if includeHDROptions {
+            metadata[kCGImageDestinationPreserveGainMap] = true
+        }
 
         CGImageDestinationAddImageFromSource(destination, source, 0, metadata as CFDictionary)
         return CGImageDestinationFinalize(destination)
+    }
+
+    private static func assetContainsHDRVideo(_ asset: AVURLAsset) -> Bool {
+        asset.tracks(withMediaType: .video).contains {
+            $0.hasMediaCharacteristic(.containsHDRVideo)
+        }
+    }
+
+    private static func imageSourceContainsHDRGainMap(_ source: CGImageSource) -> Bool {
+        CGImageSourceCopyAuxiliaryDataInfoAtIndex(
+            source,
+            0,
+            kCGImageAuxiliaryDataTypeHDRGainMap
+        ) != nil
     }
 
     private static func stillImageMetadata(
