@@ -17,6 +17,19 @@ macOS App，用于将本地视频转换并导入「照片」App，让系统识�
 EOF
 
 case "$version" in
+  v1.2.2)
+    cat >> "$output" <<'EOF'
+## 主要变化
+
+- 修复普通 SDR Live Photo 封面因错误启用 HDR 编码选项而出现偏红的问题。
+- 从视频生成封面时，根据视频是否包含 HDR 决定是否启用 HDR 选项。
+- 使用自定义图片封面时，根据图片是否包含 HDR gain map 决定是否启用 HDR 选项及保留 gain map。
+
+## 安装
+
+下载 `LivePhotoMaker-v1.2.2-macos.dmg`，打开后将 `LivePhotoMaker.app` 拖入 Applications。
+EOF
+    ;;
   v1.2.1)
     cat >> "$output" <<'EOF'
 ## 主要变化
